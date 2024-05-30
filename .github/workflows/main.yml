@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   check-docker-version:
@@ -13,37 +14,92 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v2
 
+    - name: Install JQ
+      run: sudo apt-get install jq -y
+
     - name: Determine Docker Image Version
+      id: get-versions
       run: |
-        VERSION=$(grep -oP '(?<=nginx:)[\d.]+' Dockerfile)
-        echo "Docker image version: $VERSION"
-        echo "::set-output name=version::$VERSION"
+        DOCKERFILE=Dockerfile
+        IMAGE_LINE=$(grep -E '^FROM' $DOCKERFILE)
+        IMAGE_NAME=$(echo $IMAGE_LINE | awk -F':' '{print $1}' | awk '{print $2}')
+        IMAGE_TAG=$(echo $IMAGE_LINE | awk -F':' '{print $2}')
+
+        echo "Image name: $IMAGE_NAME"
+        echo "Current version: $IMAGE_TAG"
+
+        LATEST_VERSION=$(curl -s "https://registry.hub.docker.com/v2/repositories/library/$IMAGE_NAME/tags?page_size=100" | jq -r '.results[].name' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+
+        echo "Latest version: $LATEST_VERSION"
+
+        echo "::set-output name=image-name::$IMAGE_NAME"
+        echo "::set-output name=current-version::$IMAGE_TAG"
+        echo "::set-output name=latest-version::$LATEST_VERSION"
 
     - name: Check for New Version
       id: check-version
       run: |
-        CURRENT_VERSION=$(grep -oP '(?<=nginx:)[\d.]+' Dockerfile)
-        echo "Current version: $CURRENT_VERSION"
-
-        LATEST_VERSION=$(curl -s https://hub.docker.com/v2/repositories/library/nginx/tags?page_size=100 | jq -r '.results[].name' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
-        echo "Latest version: $LATEST_VERSION"
-
-        if [ "$(printf '%s\n' "$LATEST_VERSION" "$CURRENT_VERSION" | sort -V | head -n1)" != "$LATEST_VERSION" ]; then
-          echo "Newer version $LATEST_VERSION found!"
+        if [ "$(printf '%s\n' "${{ steps.get-versions.outputs.latest-version }}" "${{ steps.get-versions.outputs.current-version }}" | sort -V | head -n1)" != "${{ steps.get-versions.outputs.latest-version }}" ]; then
+          echo "Newer version ${{ steps.get-versions.outputs.latest-version }} found!"
           echo "::set-output name=new-version::true"
-          echo "::set-output name=latest-version::$LATEST_VERSION"
         else
           echo "No newer version found."
           echo "::set-output name=new-version::false"
         fi
-        
+
     - name: Create Pull Request
       if: steps.check-version.outputs.new-version == 'true'
-      uses: peter-evans/create-pull-request@v3
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        commit-message: "Update nginx to version ${{ steps.check-version.outputs.latest-version }}"
-        title: "Update nginx to version ${{ steps.check-version.outputs.latest-version }}"
-        body: "This PR updates the nginx Docker image to version ${{ steps.check-version.outputs.latest-version }}."
-        branch: "update-nginx-version"
-        labels: "dependencies, automated-pr"
+      uses: dependabot/fetch-metadata@v1
+
+
+
+
+# name: Docker Version Check
+
+# on:
+#   push:
+#     branches:
+#       - main
+
+# jobs:
+#   check-docker-version:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#     - name: Checkout Repository
+#       uses: actions/checkout@v2
+
+#     - name: Determine Docker Image Version
+#       run: |
+#         VERSION=$(grep -oP '(?<=nginx:)[\d.]+' Dockerfile)
+#         echo "Docker image version: $VERSION"
+#         echo "::set-output name=version::$VERSION"
+
+#     - name: Check for New Version
+#       id: check-version
+#       run: |
+#         CURRENT_VERSION=$(grep -oP '(?<=nginx:)[\d.]+' Dockerfile)
+#         echo "Current version: $CURRENT_VERSION"
+
+#         LATEST_VERSION=$(curl -s https://hub.docker.com/v2/repositories/library/nginx/tags?page_size=100 | jq -r '.results[].name' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+#         echo "Latest version: $LATEST_VERSION"
+
+#         if [ "$(printf '%s\n' "$LATEST_VERSION" "$CURRENT_VERSION" | sort -V | head -n1)" != "$LATEST_VERSION" ]; then
+#           echo "Newer version $LATEST_VERSION found!"
+#           echo "::set-output name=new-version::true"
+#           echo "::set-output name=latest-version::$LATEST_VERSION"
+#         else
+#           echo "No newer version found."
+#           echo "::set-output name=new-version::false"
+#         fi
+        
+#     - name: Create Pull Request
+#       if: steps.check-version.outputs.new-version == 'true'
+#       uses: peter-evans/create-pull-request@v3
+#       with:
+#         token: ${{ secrets.GITHUB_TOKEN }}
+#         commit-message: "Update nginx to version ${{ steps.check-version.outputs.latest-version }}"
+#         title: "Update nginx to version ${{ steps.check-version.outputs.latest-version }}"
+#         body: "This PR updates the nginx Docker image to version ${{ steps.check-version.outputs.latest-version }}."
+#         branch: "update-nginx-version"
+#         labels: "dependencies, automated-pr"
