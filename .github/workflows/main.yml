@@ -1,1 +1,20 @@
+name: Docker Version Check
 
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  check-docker-version:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Determine Docker Image Version
+      run: |
+        VERSION=$(grep -oP '(?<=nginx:)[\d.]+' Dockerfile)
+        echo "Docker image version: $VERSION"
+        echo "::set-output name=version::$VERSION"
