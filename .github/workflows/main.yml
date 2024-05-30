@@ -36,3 +36,14 @@ jobs:
           echo "No newer version found."
           echo "::set-output name=new-version::false"
         fi
+        
+    - name: Create Pull Request
+      if: steps.check-version.outputs.new-version == 'true'
+      uses: peter-evans/create-pull-request@v3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "Update nginx to version ${{ steps.check-version.outputs.latest-version }}"
+        title: "Update nginx to version ${{ steps.check-version.outputs.latest-version }}"
+        body: "This PR updates the nginx Docker image to version ${{ steps.check-version.outputs.latest-version }}."
+        branch: "update-nginx-version"
+        labels: "dependencies, automated-pr"
