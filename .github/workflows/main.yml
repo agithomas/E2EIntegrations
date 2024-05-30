@@ -48,9 +48,9 @@ jobs:
         fi
 
     - name: Update Dockerfile with New Version
-          if: steps.check-version.outputs.new-version == 'true'
-          run: |
-            sed -i "s|${{ steps.get-versions.outputs.image-name }}:${{ steps.get-versions.outputs.current-version }}|${{ steps.get-versions.outputs.image-name }}:${{ steps.get-versions.outputs.latest-version }}|g" Dockerfile
+      if: steps.check-version.outputs.new-version == 'true'
+      run: |
+        sed -i "s|${{ steps.get-versions.outputs.image-name }}:${{ steps.get-versions.outputs.current-version }}|${{ steps.get-versions.outputs.image-name }}:${{ steps.get-versions.outputs.latest-version }}|g" Dockerfile
 
     - name: Commit and Push Changes
       if: steps.check-version.outputs.new-version == 'true'
@@ -73,6 +73,7 @@ jobs:
         body: "This PR updates the ${{ steps.get-versions.outputs.image-name }} Docker image to version ${{ steps.get-versions.outputs.latest-version }}."
         branch: ${{ steps.check-version.outputs.branch-name }}
         labels: "dependencies, automated-pr"
+
 
 
 
