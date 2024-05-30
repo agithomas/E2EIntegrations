@@ -47,10 +47,32 @@ jobs:
           echo "::set-output name=new-version::false"
         fi
 
+    - name: Update Dockerfile with New Version
+          if: steps.check-version.outputs.new-version == 'true'
+          run: |
+            sed -i "s|${{ steps.get-versions.outputs.image-name }}:${{ steps.get-versions.outputs.current-version }}|${{ steps.get-versions.outputs.image-name }}:${{ steps.get-versions.outputs.latest-version }}|g" Dockerfile
+
+    - name: Commit and Push Changes
+      if: steps.check-version.outputs.new-version == 'true'
+      run: |
+        git config --global user.name 'github-actions'
+        git config --global user.email 'github-actions@github.com'
+        BRANCH_NAME=update-${{ steps.get-versions.outputs.image-name }}-${{ steps.get-versions.outputs.latest-version }}
+        git checkout -b $BRANCH_NAME
+        git add Dockerfile
+        git commit -m "Update ${{ steps.get-versions.outputs.image-name }} to version ${{ steps.get-versions.outputs.latest-version }}"
+        git push origin $BRANCH_NAME
+
     - name: Create Pull Request
       if: steps.check-version.outputs.new-version == 'true'
-      uses: dependabot/fetch-metadata@v1
-
+      uses: peter-evans/create-pull-request@v3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "Update ${{ steps.get-versions.outputs.image-name }} to version ${{ steps.get-versions.outputs.latest-version }}"
+        title: "Update ${{ steps.get-versions.outputs.image-name }} to version ${{ steps.get-versions.outputs.latest-version }}"
+        body: "This PR updates the ${{ steps.get-versions.outputs.image-name }} Docker image to version ${{ steps.get-versions.outputs.latest-version }}."
+        branch: ${{ steps.check-version.outputs.branch-name }}
+        labels: "dependencies, automated-pr"
 
 
 
